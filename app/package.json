@@ -1,0 +1,18 @@
+{
+  "name": "lab06-devops-api",
+  "version": "1.0.0",
+  "description": "API dummy para laboratorio DevOps con CI/CD",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "lint": "node --check index.js",
+    "test": "jest"
+  },
+  "dependencies": {
+    "express": "^4.18.3"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0",
+    "supertest": "^6.3.4"
+  }
+}

@@ -1,0 +1,47 @@
+name: CD - Despliegue en Azure VM
+
+on:
+  workflow_run:
+    workflows: [ "CI - Validacion y Empaquetado" ]
+    types:
+      - completed
+
+jobs:
+  deploy:
+    if: ${{ github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main' }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Descargar codigo
+        uses: actions/checkout@v4
+
+      - name: Crear paquete para despliegue
+        run: |
+          mkdir -p dist
+          tar -czf dist/devops-app.tar.gz app scripts README.md INFORME.md
+
+      - name: Copiar paquete a la VM por SSH
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.AZURE_VM_HOST }}
+          username: ${{ secrets.AZURE_VM_USER }}
+          key: ${{ secrets.AZURE_VM_SSH_KEY }}
+          source: "dist/devops-app.tar.gz"
+          target: "/tmp"
+
+      - name: Ejecutar despliegue remoto
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.AZURE_VM_HOST }}
+          username: ${{ secrets.AZURE_VM_USER }}
+          key: ${{ secrets.AZURE_VM_SSH_KEY }}
+          script: |
+            rm -rf /tmp/devops-package
+            mkdir -p /tmp/devops-package
+            tar -xzf /tmp/dist/devops-app.tar.gz -C /tmp/devops-package
+            chmod +x /tmp/devops-package/scripts/deploy.sh
+            bash /tmp/devops-package/scripts/deploy.sh
+
+      - name: Validar servicio publico
+        run: |
+          curl -f http://${{ secrets.AZURE_VM_HOST }}:8080/health

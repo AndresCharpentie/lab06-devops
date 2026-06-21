@@ -1,0 +1,83 @@
+name: CI-CD - Lab DevOps Azure VM
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  ci:
+    name: CI - Validar, probar y empaquetar
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Descargar codigo
+        uses: actions/checkout@v4
+
+      - name: Configurar NodeJS
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Instalar dependencias
+        working-directory: app
+        run: npm ci
+
+      - name: Validar sintaxis
+        working-directory: app
+        run: npm run lint
+
+      - name: Ejecutar pruebas
+        working-directory: app
+        run: npm test
+
+      - name: Crear paquete TAR
+        run: |
+          mkdir -p dist
+          tar -czf dist/devops-app.tar.gz app scripts README.md INFORME.md
+
+      - name: Publicar artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: devops-app
+          path: dist/devops-app.tar.gz
+
+  cd:
+    name: CD - Desplegar en Azure VM
+    needs: ci
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Descargar artifact generado por CI
+        uses: actions/download-artifact@v4
+        with:
+          name: devops-app
+          path: dist
+
+      - name: Copiar paquete a la VM por SSH
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.AZURE_VM_HOST }}
+          username: ${{ secrets.AZURE_VM_USER }}
+          key: ${{ secrets.AZURE_VM_SSH_KEY }}
+          source: "dist/devops-app.tar.gz"
+          target: "/tmp"
+
+      - name: Ejecutar despliegue remoto
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.AZURE_VM_HOST }}
+          username: ${{ secrets.AZURE_VM_USER }}
+          key: ${{ secrets.AZURE_VM_SSH_KEY }}
+          script: |
+            rm -rf /tmp/devops-package
+            mkdir -p /tmp/devops-package
+            tar -xzf /tmp/dist/devops-app.tar.gz -C /tmp/devops-package
+            chmod +x /tmp/devops-package/scripts/deploy.sh
+            bash /tmp/devops-package/scripts/deploy.sh
+
+      - name: Validar servicio publico
+        run: |
+          curl -f http://${{ secrets.AZURE_VM_HOST }}:8080/health

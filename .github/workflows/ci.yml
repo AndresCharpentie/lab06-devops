@@ -1,0 +1,43 @@
+name: CI - Validacion y Empaquetado
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build-test-package:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Descargar codigo
+        uses: actions/checkout@v4
+
+      - name: Configurar NodeJS
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Instalar dependencias
+        working-directory: app
+        run: npm ci
+
+      - name: Validar sintaxis
+        working-directory: app
+        run: npm run lint
+
+      - name: Ejecutar pruebas
+        working-directory: app
+        run: npm test
+
+      - name: Crear paquete TAR
+        run: |
+          mkdir -p dist
+          tar -czf dist/devops-app.tar.gz app scripts README.md INFORME.md
+
+      - name: Publicar artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: devops-app
+          path: dist/devops-app.tar.gz

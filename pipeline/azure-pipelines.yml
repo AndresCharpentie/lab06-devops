@@ -1,0 +1,62 @@
+trigger:
+  branches:
+    include:
+      - main
+
+pool:
+  vmImage: ubuntu-latest
+
+stages:
+  - stage: CI
+    displayName: Validacion y empaquetado
+    jobs:
+      - job: BuildTestPackage
+        displayName: Build, test y artifact
+        steps:
+          - task: NodeTool@0
+            inputs:
+              versionSpec: '20.x'
+            displayName: Instalar NodeJS
+
+          - script: npm ci
+            workingDirectory: app
+            displayName: Instalar dependencias
+
+          - script: npm run lint
+            workingDirectory: app
+            displayName: Validar sintaxis
+
+          - script: npm test
+            workingDirectory: app
+            displayName: Ejecutar pruebas
+
+          - script: |
+              mkdir -p dist
+              tar -czf dist/devops-app.tar.gz app scripts README.md INFORME.md
+            displayName: Crear paquete
+
+          - publish: dist/devops-app.tar.gz
+            artifact: devops-app
+            displayName: Publicar artifact
+
+  - stage: CD
+    displayName: Despliegue en Azure VM
+    dependsOn: CI
+    condition: succeeded()
+    jobs:
+      - deployment: DeployVM
+        displayName: Deploy por SSH
+        environment: produccion
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - download: current
+                  artifact: devops-app
+
+                # Este bloque es una referencia para Azure DevOps.
+                # Para usarlo, crear un Service Connection SSH o reemplazar por tareas SSH/CopyFilesOverSSH.
+                - script: |
+                    echo "En GitHub Actions el despliegue se realiza con secrets y acciones SSH."
+                    echo "En Azure DevOps se puede completar con CopyFilesOverSSH@0 y SSH@0."
+                  displayName: Nota comparativa Azure DevOps

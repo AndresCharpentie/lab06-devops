@@ -22,7 +22,7 @@ jobs:
 
       - name: Instalar dependencias
         working-directory: app
-        run: npm ci
+        run: npm install
 
       - name: Validar sintaxis
         working-directory: app
